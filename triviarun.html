@@ -307,9 +307,9 @@
           <div class="left-panel">
             <div class="host-info-toggle" onclick="toggleHostInfo()">
               <span>🎮 Host Controls</span>
-              <span id="toggleIcon">▼</span>
+              <span id="toggleIcon">▲</span>
             </div>
-            <div class="host-info-box" id="hostInfoBox">
+            <div class="host-info-box show" id="hostInfoBox">
               <div id="qrContainer">
                 <canvas id="qrCode"></canvas>
                 <div class="room-code-display" id="displayRoomCode"></div>
@@ -443,10 +443,11 @@
     function showStart() { showPage('startPage'); }
     function showJoin() { showPage('joinPage'); }
 
-    function updateStatus(connected) {
+    function updateStatus(connState) {
       const dot = document.getElementById('statusDot');
       const text = document.getElementById('statusText');
-      if (connected) { dot.classList.add('connected'); text.textContent = 'Live'; }
+      if (connState === 'connected') { dot.classList.add('connected'); text.textContent = 'Live'; }
+      else if (connState === 'connecting') { dot.classList.remove('connected'); text.textContent = 'Connecting...'; }
       else { dot.classList.remove('connected'); text.textContent = 'Offline'; }
     }
 
@@ -456,10 +457,11 @@
         clean: true,
         reconnectPeriod: 3000
       });
-      client.on('connect', () => { updateStatus(true); callback(); });
-      client.on('error', () => { updateStatus(false); });
-      client.on('offline', () => { updateStatus(false); });
-      client.on('reconnect', () => { updateStatus(true); });
+      updateStatus('connecting');
+      client.on('connect', () => { updateStatus('connected'); callback(); });
+      client.on('error', () => { updateStatus('error'); });
+      client.on('offline', () => { updateStatus('offline'); });
+      client.on('reconnect', () => { updateStatus('connected'); });
     }
 
     function publish(topic, payload) {
@@ -573,6 +575,8 @@
       }
       gameActive = true;
       document.getElementById('startGameBtn').disabled = true;
+      document.getElementById('hostInfoBox').classList.remove('show');
+      document.getElementById('toggleIcon').textContent = '▼';
       nextQuestion();
     }
 
