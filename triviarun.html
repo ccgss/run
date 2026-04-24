@@ -332,7 +332,7 @@
             <div class="playground" id="playground"></div>
             <div class="question-area">
               <div class="question-display">
-                <p class="question-text" id="questionText">Waiting for host to start...</p>
+                <div class="question-text" id="questionText">Waiting for question...</p>
               </div>
               <div class="timer-display" id="timerDisplay" style="display:none;">12</div>
             </div>
@@ -582,13 +582,12 @@
       const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
       currentQuestion = q;
       
-      document.getElementById('questionText').textContent = q.q;
       const timerEl = document.getElementById('timerDisplay');
       timerEl.style.display = 'block';
       timerEl.textContent = QUESTION_TIME;
       timerEl.className = 'timer-display';
       
-      publish(gameId + '/question', { question: q, time: QUESTION_TIME });
+      publish(gameId + '/question', { question: q, time: QUESTION_TIME, showAnswer: false });
       
       let timeLeft = QUESTION_TIME;
       questionTimer = setInterval(() => {
@@ -634,7 +633,7 @@
         showAnswer: true 
       });
       
-      setTimeout(() => { if (gameActive) nextQuestion(); }, 3000);
+      setTimeout(() => { if (gameActive) nextQuestion(); }, 2000);
     }
 
     function updateRunways() {
@@ -674,7 +673,7 @@
       publish(gameId + '/teams', { type: 'update', teams: teams });
       updateTeamList();
       updateRunways();
-      document.getElementById('questionText').textContent = 'Waiting for host to start...';
+      document.getElementById('questionText').textContent = 'Waiting for question...';
       document.getElementById('timerDisplay').style.display = 'none';
     }
 
