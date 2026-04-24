@@ -528,7 +528,7 @@
             updateRunways();
             checkWinner();
           }
-        } catch (e) {}
+        } catch (e) { console.log('Host message error:', e); }
       });
     }
 
@@ -572,6 +572,7 @@
         return;
       }
       gameActive = true;
+      document.getElementById('startGameBtn').disabled = true;
       nextQuestion();
     }
 
@@ -699,8 +700,7 @@
       playerId = generateId(6);
       
       connectMQTT(() => {
-        const topic = gameId + '/player/' + playerId;
-        client.subscribe(topic, (err) => {
+        client.subscribe(gameId + '/#', (err) => {
           if (err) { showError('Failed to join'); return; }
           
           publish(gameId + '/join', {
@@ -716,55 +716,54 @@
         try {
           const data = JSON.parse(msg.toString());
           
-          if (topic.includes(playerId)) {
-            if (data.teams) {
-              const myTeam = data.teams[teamNum];
-              if (myTeam) {
-                if (myTeam.player2 && myTeam.player1 !== playerName) {
-                  showTeammateJoined(myTeam);
-                } else if (myTeam.player1 && !myTeam.player2) {
-                  showWaitingForTeammate(myTeam);
-                }
+          if (data.teams) {
+            const myTeam = data.teams[teamNum];
+            if (myTeam) {
+              if (myTeam.player2 && myTeam.player1 !== playerName) {
+                showTeammateJoined(myTeam);
+              } else if (myTeam.player1 && !myTeam.player2) {
+                showWaitingForTeammate(myTeam);
               }
+            }
+          }
+          
+          if (data.question) {
+            currentQuestion = data.question;
+            answered = false;
+            document.getElementById('resultMsg').style.display = 'none';
+            document.getElementById('correctAnswer').style.display = 'none';
+            
+            if (data.showAnswer) {
+              showPlayerAnswer();
+              return;
             }
             
-            if (data.question) {
-              currentQuestion = data.question;
-              answered = false;
-              document.getElementById('resultMsg').style.display = 'none';
-              document.getElementById('correctAnswer').style.display = 'none';
-              
-              if (data.showAnswer) {
-                showPlayerAnswer();
-                return;
-              }
-              
-              document.getElementById('playerQuestionText').textContent = data.question.q;
-              
-              const timerEl = document.getElementById('playerTimer');
-              timerEl.style.display = 'block';
-              timerEl.textContent = data.time;
-              timerEl.className = 'countdown-timer';
-              
-              const letters = ['A', 'B', 'C', 'D'];
-              document.getElementById('playerAnswers').innerHTML = data.question.a.map((ans, i) => `
-                <button class="answer-btn" onclick="submitAnswer(${i})" id="ans${i}">
-                  <span class="answer-letter">${letters[i]}</span>
-                  ${ans}
-                </button>
-              `).join('');
-              
-              let timeLeft = data.time;
-              const playerTimer = setInterval(() => {
-                timeLeft--;
-                timerEl.textContent = timeLeft;
-                if (timeLeft <= 3) timerEl.className = 'countdown-timer danger';
-                else if (timeLeft <= 5) timerEl.className = 'countdown-timer warning';
-                if (timeLeft <= 0) clearInterval(playerTimer);
-              }, 1000);
-              
-              showPage('playerPage');
-            }
+            document.getElementById('playerQuestionText').textContent = data.question.q;
+            
+            const timerEl = document.getElementById('playerTimer');
+            timerEl.style.display = 'block';
+            timerEl.textContent = data.time;
+            timerEl.className = 'countdown-timer';
+            
+            const letters = ['A', 'B', 'C', 'D'];
+            document.getElementById('playerAnswers').innerHTML = data.question.a.map((ans, i) => `
+              <button class="answer-btn" onclick="submitAnswer(${i})" id="ans${i}">
+                <span class="answer-letter">${letters[i]}</span>
+                ${ans}
+              </button>
+            `).join('');
+            
+            let timeLeft = data.time;
+            const playerCountdown = setInterval(() => {
+              timeLeft--;
+              timerEl.textContent = timeLeft;
+              if (timeLeft <= 3) timerEl.className = 'countdown-timer danger';
+              else if (timeLeft <= 5) timerEl.className = 'countdown-timer warning';
+              if (timeLeft <= 0) clearInterval(playerCountdown);
+            }, 1000);
+            
+            showPage('playerPage');
+          }
             
             if (data.winner) {
               gameActive = false;
@@ -772,7 +771,7 @@
               showPage('winnerPage');
             }
           }
-        } catch (e) {}
+        } catch (e) { console.log('Message error:', e); }
       });
     }
 
