@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Team Trivia Run</title>
+  <script src="https://cdn.jsdelivr.net/npm/mqtt@5/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1/build/qrcode.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0f0f23;
+      --track: #1a1a2e;
+      --runway: #252540;
+      --primary: #00d4ff;
+      --success: #00ff88;
+      --warning: #ffd700;
+      --error: #ff4757;
+      --text: #ffffff;
+      --text-muted: #8892b0;
+      --team1: #ff6b6b;
+      --team2: #4ecdc4;
+      --team3: #ffe66d;
+      --team4: #95e1d3;
+      --team5: #f38181;
+      --team6: #aa96da;
+      --team7: #fcbad3;
+      --team8: #a8d8ea;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'JetBrains Mono', monospace;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+      touch-action: manipulation;
+    }
+
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+      padding: 12px;
+      min-height: 100vh;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px;
+      background: var(--track);
+      border-radius: 12px;
+      margin-bottom: 12px;
+    }
+
+    .logo {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.75rem;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--error);
+    }
+
+    .status-dot.connected { background: var(--success); animation: pulse 2s infinite; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    .page {
+      display: none;
+    }
+
+    .page.active { display: block; }
+
+    h1 { font-size: 1.5rem; text-align: center; margin-bottom: 8px; }
+    .subtitle { text-align: center; color: var(--text-muted); font-size: 0.875rem; margin-bottom: 16px; }
+
+    .btn {
+      padding: 14px 20px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: 52px;
+    }
+
+    .btn:hover { transform: scale(1.02); }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary { background: var(--primary); color: var(--bg); }
+    .btn-secondary { background: transparent; border: 2px solid var(--primary); color: var(--primary); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .input-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.875rem; color: var(--text-muted); margin-bottom: 4px; }
+    
+    input, select {
+      width: 100%;
+      padding: 14px;
+      font-family: inherit;
+      font-size: 1rem;
+      background: var(--track);
+      border: 2px solid rgba(0, 212, 255, 0.3);
+      border-radius: 8px;
+      color: var(--text);
+      outline: none;
+    }
+
+    input:focus, select:focus { border-color: var(--primary); }
+
+    .card {
+      background: var(--track);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+
+    #qrContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    #qrCode {
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    .room-code-display {
+      font-size: 2.5rem;
+      font-weight: 700;
+      letter-spacing: 6px;
+      color: var(--primary);
+      text-shadow: 0 0 20px rgba(0, 212, 255, 0.5);
+    }
+
+    .game-url {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      word-break: break-all;
+      text-align: center;
+    }
+
+    .teams-container {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .team-slot {
+      background: var(--runway);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      border: 2px dashed var(--text-muted);
+    }
+
+    .team-slot.filled {
+      border-style: solid;
+      border-color: var(--primary);
+    }
+
+    .team-name {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 4px;
+    }
+
+    .team-members {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .runways {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .runway {
+      background: var(--runway);
+      border-radius: 8px;
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 56px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .runway-team {
+      font-size: 0.875rem;
+      font-weight: 600;
+      width: 80px;
+      flex-shrink: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .runway-track {
+      flex: 1;
+      height: 32px;
+      background: var(--bg);
+      border-radius: 4px;
+      position: relative;
+    }
+
+    .runway-steps {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: flex;
+    }
+
+    .step-marker {
+      flex: 1;
+      border-right: 1px solid var(--runway);
+    }
+
+    .runway-runner {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.5rem;
+      transition: left 0.5s ease;
+    }
+
+    .finish-line {
+      position: absolute;
+      right: 40px;
+      top: 0;
+      bottom: 0;
+      width: 4px;
+      background: repeating-linear-gradient(
+        0deg,
+        var(--warning) 0px,
+        var(--warning) 8px,
+        var(--bg) 8px,
+        var(--bg) 16px
+      );
+    }
+
+    .timer {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 120px;
+      height: 120px;
+      border-radius: 50%;
+      background: var(--track);
+      border: 6px solid var(--primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      font-weight: 700;
+      z-index: 100;
+      box-shadow: 0 0 30px rgba(0, 212, 255, 0.5);
+    }
+
+    .timer.warning { border-color: var(--warning); box-shadow: 0 0 30px rgba(255, 215, 0, 0.5); }
+    .timer.danger { border-color: var(--error); box-shadow: 0 0 30px rgba(255, 71, 87, 0.5); }
+
+    .question-display {
+      background: var(--track);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .question-text {
+      font-size: 1.25rem;
+      line-height: 1.4;
+    }
+
+    .answers {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+
+    .answer-btn {
+      padding: 16px;
+      font-family: inherit;
+      font-size: 1rem;
+      font-weight: 600;
+      background: var(--track);
+      border: 2px solid rgba(0, 212, 255, 0.3);
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
+      transition: all 0.2s;
+      min-height: 70px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .answer-btn:hover { border-color: var(--primary); }
+    .answer-btn.selected { background: rgba(0, 212, 255, 0.3); border-color: var(--primary); }
+    .answer-btn.correct { background: rgba(0, 255, 136, 0.3); border-color: var(--success); }
+    .answer-btn.incorrect { background: rgba(255, 71, 87, 0.3); border-color: var(--error); }
+    .answer-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .answer-letter {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: var(--bg);
+      font-weight: 700;
+      font-size: 0.875rem;
+    }
+
+    .locked-msg {
+      background: var(--warning);
+      color: var(--bg);
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      font-weight: 600;
+    }
+
+    .result-msg {
+      padding: 16px;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+
+    .result-msg.correct { background: rgba(0, 255, 136, 0.2); color: var(--success); }
+    .result-msg.wrong { background: rgba(255, 71, 87, 0.2); color: var(--error); }
+
+    .correct-answer {
+      background: rgba(0, 255, 136, 0.2);
+      border: 2px solid var(--success);
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .error-msg {
+      background: rgba(255, 71, 87, 0.2);
+      color: var(--error);
+      padding: 12px;
+      border-radius: 8px;
+      text-align: center;
+    }
+
+    .footer-score {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: var(--track);
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 1rem;
+    }
+
+    .footer-score .label { color: var(--text-muted); }
+    .footer-score .value { font-size: 1.5rem; font-weight: 700; color: var(--warning); }
+
+    .button-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .big-btn {
+      width: 100%;
+      padding: 20px;
+      font-size: 1.25rem;
+    }
+
+    @media (min-width: 768px) {
+      .container { max-width: 900px; }
+      .runway-team { width: 100px; }
+      .answers { grid-template-columns: repeat(4, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">TEAM TRIVIA RUN</div>
+      <div class="status">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Offline</span>
+      </div>
+    </header>
+
+    <main>
+      <div class="page active" id="startPage">
+        <h1>TEAM TRIVIA RUN</h1>
+        <p class="subtitle">Race to the finish by answering trivia!</p>
+        <div class="button-group">
+          <button class="btn btn-primary big-btn" onclick="hostGame()">Host Game (Show Playground)</button>
+          <button class="btn btn-secondary big-btn" onclick="showJoin()">Join as Player</button>
+        </div>
+      </div>
+
+      <div class="page" id="joinPage">
+        <h1>JOIN TEAM</h1>
+        <div class="input-group">
+          <label>Team Name</label>
+          <input type="text" id="teamName" placeholder="e.g., Team Alpha" maxlength="15">
+        </div>
+        <div class="input-group">
+          <label>Player 1 Name</label>
+          <input type="text" id="player1Name" placeholder="First player" maxlength="15">
+        </div>
+        <div class="input-group">
+          <label>Player 2 Name</label>
+          <input type="text" id="player2Name" placeholder="Second player (optional)" maxlength="15">
+        </div>
+        <div class="input-group">
+          <label>Room Code</label>
+          <input type="text" id="roomCode" placeholder="ABCD" maxlength="4" style="text-transform: uppercase; letter-spacing: 4px; text-align: center;">
+        </div>
+        <div class="button-group">
+          <button class="btn btn-primary big-btn" onclick="joinTeam()">Join Game</button>
+          <button class="btn btn-secondary" onclick="showStart()">Back</button>
+        </div>
+      </div>
+
+      <div class="page" id="hostPage">
+        <div class="card">
+          <div id="qrContainer">
+            <div id="qrCode"></div>
+            <div class="room-code-display" id="displayRoomCode"></div>
+            <div class="game-url">Scan QR or enter code to join</div>
+          </div>
+        </div>
+        <p class="subtitle" id="teamCount">0/8 Teams Ready</p>
+        <div class="teams-container" id="teamsContainer"></div>
+        <button class="btn btn-primary big-btn" id="startGameBtn" onclick="startGame()" disabled>Start Game</button>
+      </div>
+
+      <div class="page" id="playgroundPage">
+        <div class="runways" id="runways"></div>
+        <div class="question-display" id="currentQuestion">
+          <p class="question-text" id="questionText">Waiting for host to start...</p>
+        </div>
+        <div class="timer" id="timer" style="display: none;"></div>
+      </div>
+
+      <div class="page" id="playerPage">
+        <div class="result-msg" id="resultMsg" style="display: none;"></div>
+        <div class="question-display">
+          <p class="question-text" id="playerQuestionText"></p>
+        </div>
+        <div class="correct-answer" id="correctAnswer" style="display: none;">
+          Correct: <span id="correctAnswerText"></span>
+        </div>
+        <div class="answers" id="playerAnswers"></div>
+        <div class="locked-msg" id="lockedMsg" style="display: none;">
+          Your teammate answered! Watch and wait.
+        </div>
+      </div>
+
+      <div class="page" id="waitingPage">
+        <div style="text-align: center; padding: 40px;">
+          <div style="font-size: 2rem; margin-bottom: 16px;">⏳</div>
+          <p class="subtitle">Wait for next question...</p>
+        </div>
+      </div>
+
+      <div class="page" id="winnerPage">
+        <div class="card" style="text-align: center;">
+          <div style="font-size: 4rem; margin-bottom: 20px;">🏆</div>
+          <h1 id="winnerTeam">Team Wins!</h1>
+          <p class="subtitle" id="finalScore"></p>
+        </div>
+        <button class="btn btn-primary big-btn" onclick="resetGame()">New Game</button>
+      </div>
+
+      <div class="page" id="errorPage">
+        <div class="error-msg" id="errorMsg"></div>
+        <button class="btn btn-primary" onclick="showStart()">Back to Start</button>
+      </div>
+    </main>
+  </div>
+
+  <div class="footer-score" id="footerScore">
+    <span class="label">Team: <span id="myTeamName">-</span></span>
+    <span class="value">Step <span id="myStep">0</span>/100</span>
+  </div>
+
+  <script>
+    const QUESTIONS = [
+      { q: "What planet is the Red Planet?", a: ["Mars", "Venus", "Jupiter", "Saturn"], c: 0 },
+      { q: "What is the largest ocean?", a: ["Pacific", "Atlantic", "Indian", "Arctic"], c: 0 },
+      { q: "Who painted the Mona Lisa?", a: ["Da Vinci", "Michelangelo", "Raphael", "Donatello"], c: 0 },
+      { q: "Chemical symbol for gold?", a: ["Au", "Ag", "Go", "Gd"], c: 0 },
+      { q: "How many continents?", a: ["7", "5", "6", "8"], c: 0 },
+      { q: "Capital of France?", a: ["Paris", "London", "Berlin", "Madrid"], c: 0 },
+      { q: "Plants absorb what gas?", a: ["CO2", "Oxygen", "Nitrogen", "Hydrogen"], c: 0 },
+      { q: "Who wrote Hamlet?", a: ["Shakespeare", "Hemingway", "Austen", "Dickens"], c: 0 },
+      { q: "Hardest natural substance?", a: ["Diamond", "Iron", "Titanium", "Quartz"], c: 0 },
+      { q: "WWII ended in what year?", a: ["1945", "1944", "1946", "1943"], c: 0 },
+      { q: "Smallest prime number?", a: ["2", "1", "3", "0"], c: 0 },
+      { q: "Most populous country?", a: ["India", "China", "USA", "Indonesia"], c: 0 },
+      { q: "Largest mammal?", a: ["Blue Whale", "Elephant", "Giraffe", "Hippo"], c: 0 },
+      { q: "How many sides on hexagon?", a: ["6", "5", "7", "8"], c: 0 },
+      { q: "Fastest land animal?", a: ["Cheetah", "Lion", "Horse", "Gazelle"], c: 0 },
+      { q: "Atomic number 1?", a: ["Hydrogen", "Helium", "Oxygen", "Carbon"], c: 0 },
+      { q: "Discovered penicillin?", a: ["Fleming", "Curie", "Newton", "Einstein"], c: 0 },
+      { q: "Longest river?", a: ["Nile", "Amazon", "Mississippi", "Yangtze"], c: 0 },
+      { q: "Bones in adult body?", a: ["206", "208", "200", "210"], c: 0 },
+      { q: "Capital of Japan?", a: ["Tokyo", "Kyoto", "Osaka", "Seoul"], c: 0 },
+      { q: "First on the moon?", a: ["Armstrong", "Aldrin", "Gagarin", "Glenn"], c: 0 },
+      { q: "Largest desert?", a: ["Sahara", "Arabian", "Gobi", "Kalahari"], c: 0 },
+      { q: "Main guacamole ingredient?", a: ["Avocado", "Tomato", "Lime", "Onion"], c: 0 },
+      { q: "Strings on guitar?", a: ["6", "4", "5", "7"], c: 0 },
+      { q: "Total degrees in triangle?", a: ["180", "90", "360", "270"], c: 0 },
+      { q: "Capital of Australia?", a: ["Canberra", "Sydney", "Melbourne", "Perth"], c: 0 },
+      { q: "Largest US state?", a: ["Alaska", "Texas", "California", "Montana"], c: 0 },
+      { q: "Speed of light (million m/s)?", a: ["300", "150", "500", "200"], c: 0 },
+      { q: "Boiling point of water (°C)?", a: ["100", "90", "110", "80"], c: 0 },
+      { q: "Closest star to Earth?", a: ["Sun", "Proxima", "Alpha Centauri", "Sirius"], c: 0 }
+    ];
+
+    const TEAM_COLORS = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#95e1d3', '#f38181', '#aa96da', '#fcbad3', '#a8d8ea'];
+    const RUNNER_EMOJI = '🏃';
+    const STEPS_TO_WIN = 100;
+    const QUESTION_TIME = 12;
+
+    let client = null;
+    let gameId = null;
+    let playerId = null;
+    let teamId = null;
+    let isHost = false;
+    let currentQuestion = null;
+    let answered = false;
+    let myTeamStep = 0;
+    let teams = {};
+    let gameActive = false;
+    let questionTimer = null;
+    let timeRemaining = QUESTION_TIME;
+
+    const BROKER_URL = "wss://broker.hivemq.com:8884/mqtt";
+
+    function generateId(len = 4) {
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      return Array.from({length: len}, () => chars[Math.floor(Math.random() * chars.length)]).join('');
+    }
+
+    function showPage(id) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+    }
+
+    function showStart() { showPage('startPage'); }
+    function showJoin() { showPage('joinPage'); }
+
+    function updateStatus(connected) {
+      const dot = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (connected) {
+        dot.classList.add('connected');
+        text.textContent = 'Live';
+      } else {
+        dot.classList.remove('connected');
+        text.textContent = 'Offline';
+      }
+    }
+
+    function connectMQTT(callback) {
+      client = mqtt.connect(BROKER_URL, {
+        clientId: "triviarun_" + generateId(8),
+        clean: true,
+        reconnectPeriod: 3000
+      });
+
+      client.on('connect', () => { updateStatus(true); callback(); });
+      client.on('error', () => { updateStatus(false); });
+      client.on('offline', () => { updateStatus(false); });
+      client.on('reconnect', () => { updateStatus(true); });
+    }
+
+    function publish(topic, payload) {
+      if (client && client.connected) {
+        client.publish(topic, JSON.stringify(payload), { qos: 1, retain: false });
+      }
+    }
+
+    function hostGame() {
+      isHost = true;
+      gameId = generateId(4);
+      teams = {};
+      playerId = 'host_' + generateId(6);
+      teamId = 'HOST';
+
+      connectMQTT(() => {
+        client.subscribe(gameId + '/#', (err) => {
+          if (err) { showError('Failed to create game'); return; }
+          
+          teams[teamId] = { 
+            id: teamId, name: 'HOST', 
+            player1: 'Host', player2: '', 
+            step: 0, color: TEAM_COLORS[0] 
+          };
+          
+          publish(gameId + '/teams', { type: 'update', teams: teams });
+          showHostLobby();
+        });
+      });
+    }
+
+    function showHostLobby() {
+      document.getElementById('displayRoomCode').textContent = gameId;
+      updateTeamSlots();
+      showPage('hostPage');
+      
+      const url = window.location.href.split('?')[0] + '?room=' + gameId;
+      QRCode.toCanvas(document.createElement('canvas'), url, { width: 150, margin: 0 }, (err, canvas) => {
+        if (!err) {
+          const container = document.getElementById('qrCode');
+          container.innerHTML = '';
+          container.appendChild(canvas);
+        }
+      });
+
+      client.on('message', (topic, msg) => {
+        try {
+          const data = JSON.parse(msg.toString());
+          const t = topic.split('/')[1];
+          
+          if (t === 'teams' && data.type === 'join') {
+            if (Object.keys(teams).length < 8 && !teams[data.teamId]) {
+              teams[data.teamId] = {
+                id: data.teamId,
+                name: data.teamName,
+                player1: data.player1,
+                player2: data.player2,
+                step: 0,
+                color: TEAM_COLORS[Object.keys(teams).length % 8]
+              };
+              publish(gameId + '/teams', { type: 'update', teams: teams });
+              updateTeamSlots();
+            }
+          } else if (t === 'answer') {
+            handleTeamAnswer(data.teamId, data.answer, data.playerId);
+          } else if (t === 'progress') {
+            teams = data.teams;
+            updateRunways();
+            checkWinner();
+          }
+        } catch (e) {}
+      });
+    }
+
+    function updateTeamSlots() {
+      const container = document.getElementById('teamsContainer');
+      const slots = [];
+      for (let i = 0; i < 8; i++) {
+        const teamKeys = Object.keys(teams);
+        const team = teams[teamKeys[i]];
+        if (team) {
+          slots.push(`<div class="team-slot filled" style="border-color: ${team.color}">
+            <div class="team-name" style="color: ${team.color}">${team.name}</div>
+            <div class="team-members">${team.player1}${team.player2 ? ' + ' + team.player2 : ''}</div>
+          </div>`);
+        } else {
+          slots.push(`<div class="team-slot">Waiting...</div>`);
+        }
+      }
+      container.innerHTML = slots.join('');
+      
+      const count = Object.keys(teams).length;
+      document.getElementById('teamCount').textContent = `${count}/8 Teams Ready`;
+      document.getElementById('startGameBtn').disabled = count === 0;
+    }
+
+    function startGame() {
+      gameActive = true;
+      showPage('playgroundPage');
+      updateRunways();
+      nextQuestion();
+    }
+
+    function nextQuestion() {
+      if (!gameActive) return;
+      
+      const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
+      currentQuestion = q;
+      timeRemaining = QUESTION_TIME;
+      
+      document.getElementById('questionText').textContent = q.q;
+      document.getElementById('timer').style.display = 'block';
+      document.getElementById('timer').textContent = QUESTION_TIME;
+      document.getElementById('timer').className = 'timer';
+      
+      publish(gameId + '/question', { question: q, time: QUESTION_TIME });
+      
+      questionTimer = setInterval(() => {
+        timeRemaining--;
+        const timer = document.getElementById('timer');
+        timer.textContent = timeRemaining;
+        
+        if (timeRemaining <= 3) timer.className = 'timer danger';
+        else if (timeRemaining <= 5) timer.className = 'timer warning';
+        
+        if (timeRemaining <= 0) {
+          clearInterval(questionTimer);
+          timer.style.display = 'none';
+          showCorrectAnswer();
+        }
+      }, 1000);
+    }
+
+    function handleTeamAnswer(teamId, answer, playerId) {
+      const correct = answer === currentQuestion.correct;
+      const steps = correct ? Math.floor(Math.random() * 5) + 1 : 0;
+      
+      if (teams[teamId]) {
+        teams[teamId].step = Math.min(teams[teamId].step + steps, STEPS_TO_WIN);
+        
+        publish(gameId + '/progress', { 
+          teams: teams, 
+          lastTeam: teamId, 
+          steps: steps,
+          correct: correct
+        });
+      }
+    }
+
+    function showCorrectAnswer() {
+      if (questionTimer) clearInterval(questionTimer);
+      document.getElementById('timer').style.display = 'none';
+      
+      publish(gameId + '/question', { 
+        question: currentQuestion, 
+        time: 0,
+        showAnswer: true 
+      });
+      
+      setTimeout(nextQuestion, 3000);
+    }
+
+    function updateRunways() {
+      const container = document.getElementById('runways');
+      const runwayHtml = Object.values(teams).sort((a, b) => b.step - a.step).map(team => {
+        const pct = (team.step / STEPS_TO_WIN) * 100;
+        return `<div class="runway" style="border-left: 4px solid ${team.color}">
+          <div class="runway-team" style="color: ${team.color}">${team.name}</div>
+          <div class="runway-track">
+            ${Array.from({length: 100}, (_, i) => `<div class="step-marker"></div>`).join('')}
+            <div class="finish-line"></div>
+            <div class="runway-runner" style="left: calc(${pct}% - 16px)">${RUNNER_EMOJI}</div>
+          </div>
+        </div>`;
+      }).join('');
+      
+      container.innerHTML = runwayHtml || '<p style="text-align:center;color:var(--text-muted)">Waiting for teams...</p>';
+    }
+
+    function checkWinner() {
+      const winner = Object.values(teams).find(t => t.step >= STEPS_TO_WIN);
+      if (winner) {
+        gameActive = false;
+        if (questionTimer) clearInterval(questionTimer);
+        
+        document.getElementById('winnerTeam').textContent = `${winner.name} Wins!`;
+        document.getElementById('finalScore').textContent = `Reached ${winner.step} steps first`;
+        showPage('winnerPage');
+      }
+    }
+
+    function resetGame() {
+      teams = {};
+      teams[teamId] = { id: teamId, name: 'HOST', player1: 'Host', player2: '', step: 0, color: TEAM_COLORS[0] };
+      publish(gameId + '/teams', { type: 'update', teams: teams });
+      showHostLobby();
+    }
+
+    function joinTeam() {
+      const teamName = document.getElementById('teamName').value.trim();
+      const p1 = document.getElementById('player1Name').value.trim();
+      const p2 = document.getElementById('player2Name').value.trim();
+      const code = document.getElementById('roomCode').value.trim().toUpperCase();
+
+      if (!teamName || !p1 || !code || code.length !== 4) {
+        alert('Please fill all required fields');
+        return;
+      }
+
+      gameId = code;
+      playerId = generateId(6);
+      teamId = 'team_' + generateId(4);
+
+      connectMQTT(() => {
+        const topic = gameId + '/player/' + playerId;
+        client.subscribe(topic, (err) => {
+          if (err) { showError('Failed to join - check code'); return; }
+          
+          publish(gameId + '/teams', {
+            type: 'join',
+            teamId: teamId,
+            teamName: teamName,
+            player1: p1,
+            player2: p2
+          });
+          
+          showPlayerGame();
+        });
+      });
+
+      client.on('message', (topic, msg) => {
+        try {
+          const data = JSON.parse(msg.toString());
+          const t = topic.split('/')[1];
+          
+          if (t === 'player' && topic.includes(playerId)) {
+            if (data.teams) {
+              const myTeam = Object.values(data.teams).find(t => t.id === teamId);
+              if (myTeam) {
+                myTeamStep = myTeam.step;
+                document.getElementById('myStep').textContent = myTeamStep;
+                document.getElementById('myTeamName').textContent = myTeam.name;
+              }
+            }
+            
+            if (data.question) {
+              answered = false;
+              currentQuestion = data.question;
+              document.getElementById('playerQuestionText').textContent = data.question.q;
+              document.getElementById('resultMsg').style.display = 'none';
+              document.getElementById('correctAnswer').style.display = 'none';
+              document.getElementById('lockedMsg').style.display = 'none';
+              
+              const letters = ['A', 'B', 'C', 'D'];
+              document.getElementById('playerAnswers').innerHTML = data.question.a.map((ans, i) => `
+                <button class="answer-btn" onclick="submitAnswer(${i})" id="ans${i}">
+                  <span class="answer-letter">${letters[i]}</span>
+                  ${ans}
+                </button>
+              `).join('');
+              
+              if (data.showAnswer) {
+                showAnswerResult();
+              } else if (data.time > 0) {
+                showPage('playerPage');
+              }
+            }
+            
+            if (data.teams) {
+              const myTeam = Object.values(data.teams).find(t => t.id === teamId);
+              if (myTeam) {
+                myTeamStep = myTeam.step;
+                document.getElementById('myStep').textContent = myTeamStep;
+              }
+            }
+            
+            if (data.winner) {
+              gameActive = false;
+              document.getElementById('winnerTeam').textContent = `${data.winner} Wins!`;
+              showPage('winnerPage');
+            }
+          }
+        } catch (e) {}
+      });
+    }
+
+    function showPlayerGame() {
+      showPage('waitingPage');
+    }
+
+    function submitAnswer(index) {
+      if (answered || !currentQuestion) return;
+      answered = true;
+      
+      document.querySelectorAll('.answer-btn').forEach(btn => btn.disabled = true);
+      document.getElementById('ans' + index).classList.add('selected');
+      
+      publish(gameId + '/answer', {
+        teamId: teamId,
+        answer: index,
+        playerId: playerId
+      });
+      
+      showPage('waitingPage');
+    }
+
+    function showAnswerResult() {
+      const correct = currentQuestion.correct;
+      
+      document.querySelectorAll('.answer-btn').forEach((btn, i) => {
+        if (i === correct) btn.classList.add('correct');
+      });
+      
+      const selected = document.querySelector('.answer-btn.selected');
+      if (selected && !selected.classList.contains('correct')) {
+        selected.classList.add('incorrect');
+      }
+      
+      const isCorrect = selected && selected.classList.contains('correct');
+      const resultMsg = document.getElementById('resultMsg');
+      resultMsg.textContent = isCorrect ? `+${Math.floor(Math.random() * 5) + 1} Steps!` : 'Wrong!';
+      resultMsg.className = 'result-msg ' + (isCorrect ? 'correct' : 'wrong');
+      resultMsg.style.display = 'block';
+      
+      document.getElementById('correctAnswerText').textContent = currentQuestion.a[correct];
+      document.getElementById('correctAnswer').style.display = 'block';
+      
+      showPage('playerPage');
+      updateMyStep();
+    }
+
+    function updateMyStep() {
+      document.getElementById('myStep').textContent = myTeamStep;
+    }
+
+    function showError(msg) {
+      document.getElementById('errorMsg').textContent = msg;
+      showPage('errorPage');
+    }
+  </script>
+</body>
+</html>
