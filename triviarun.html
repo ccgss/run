@@ -175,12 +175,8 @@
     }
     .runway-info { width: 80px; text-align: right; font-size: 0.875rem; color: var(--text-muted); }
 
-    .question-area { padding: 16px; background: var(--track); border-top: 1px solid rgba(0,212,255,0.2); }
-    .question-display { background: var(--runway); border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 12px; }
     .question-text { font-size: 1.5rem; }
-    .timer-display { text-align: center; font-size: 2rem; font-weight: 700; padding: 12px; }
-    .timer-display.warning { color: var(--warning); }
-    .timer-display.danger { color: var(--error); }
+    .countdown-timer { font-size: 3rem; font-weight: 700; text-align: center; padding: 20px; }
 
     /* PLAYER UI */
     .player-main { flex: 1; padding: 16px; max-width: 600px; margin: 0 auto; display: flex; flex-direction: column; }
@@ -250,7 +246,7 @@
     .spinner { width: 60px; height: 60px; border: 4px solid var(--track); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    .footer-player { position: fixed; bottom: 0; left: 0; right: 0; background: var(--track); padding: 12px 16px; display: flex; justify-content: space-between; }
+    .player-footer { position: fixed; bottom: 0; left: 0; right: 0; background: var(--track); padding: 12px 16px; display: flex; justify-content: space-between; }
 
     .error-msg { background: rgba(255,71,87,0.2); color: var(--error); padding: 12px; border-radius: 8px; text-align: center; }
 
@@ -330,12 +326,6 @@
           
           <div class="right-panel">
             <div class="playground" id="playground"></div>
-            <div class="question-area">
-              <div class="question-display">
-                <div class="question-text" id="questionText">Waiting for question...</p>
-              </div>
-              <div class="timer-display" id="timerDisplay" style="display:none;">12</div>
-            </div>
           </div>
         </div>
       </div>
@@ -344,14 +334,15 @@
         <div class="player-main">
           <div id="resultMsg" class="result-correct" style="display:none;"></div>
           <div class="question-display">
-            <p class="question-text" id="playerQuestionText">Waiting...</p>
+            <p class="question-text" id="playerQuestionText"></p>
           </div>
+          <div class="countdown-timer" id="playerTimer" style="display:none;"></div>
           <div id="correctAnswer" class="correct-answer" style="display:none;">
             Correct: <span id="correctAnswerText"></span>
           </div>
           <div class="answers" id="playerAnswers"></div>
         </div>
-        <div class="footer-player">
+        <div class="player-footer">
           <span>Team <span id="myTeamNum">-</span></span>
           <span>Step <span id="myStep">0</span>/100</span>
         </div>
@@ -582,23 +573,13 @@
       const q = QUESTIONS[Math.floor(Math.random() * QUESTIONS.length)];
       currentQuestion = q;
       
-      const timerEl = document.getElementById('timerDisplay');
-      timerEl.style.display = 'block';
-      timerEl.textContent = QUESTION_TIME;
-      timerEl.className = 'timer-display';
-      
       publish(gameId + '/question', { question: q, time: QUESTION_TIME, showAnswer: false });
       
       let timeLeft = QUESTION_TIME;
       questionTimer = setInterval(() => {
         timeLeft--;
-        timerEl.textContent = timeLeft;
-        if (timeLeft <= 3) timerEl.className = 'timer-display danger';
-        else if (timeLeft <= 5) timerEl.className = 'timer-display warning';
-        
         if (timeLeft <= 0) {
           clearInterval(questionTimer);
-          timerEl.style.display = 'none';
           showAnswer();
         }
       }, 1000);
@@ -625,7 +606,6 @@
     function showAnswer() {
       if (!currentQuestion) return;
       if (questionTimer) clearInterval(questionTimer);
-      document.getElementById('timerDisplay').style.display = 'none';
       
       publish(gameId + '/question', { 
         question: currentQuestion, 
@@ -638,20 +618,23 @@
 
     function updateRunways() {
       const container = document.getElementById('playground');
-      const sorted = Object.values(teams).filter(t => t && t.ready).sort((a, b) => b.step - a.step);
       
-      container.innerHTML = sorted.map(team => {
-        const pct = (team.step / STEPS_TO_WIN) * 100;
-        return `<div class="runway" style="border-left:4px solid ${team.color}">
-          <div class="runway-team" style="color:${team.color}">${team.name}</div>
+      container.innerHTML = [0,1,2,3,4,5,6,7].map(i => {
+        const team = teams[i];
+        const pct = team ? (team.step / STEPS_TO_WIN) * 100 : 0;
+        const name = team ? team.name : `TEAM ${i+1}`;
+        const color = team ? team.color : TEAM_COLORS[i];
+        
+        return `<div class="runway" style="border-left:4px solid ${color}">
+          <div class="runway-team" style="color:${color}">${name}</div>
           <div class="runway-track">
             ${Array.from({length: 100}, () => '<div class="step-marker"></div>').join('')}
             <div class="finish-line"></div>
-            <div class="runway-runner" style="left:calc(${pct}% - 20px)">${RUNNER_EMOJI}</div>
+            <div class="runway-runner" style="left:calc(${pct}% - 20px)">${team ? RUNNER_EMOJI : ''}</div>
           </div>
-          <div class="runway-info">${team.step}/100</div>
+          <div class="runway-info">${team ? team.step + '/100' : '-/100'}</div>
         </div>`;
-      }).join('') || '<p style="text-align:center;color:var(--text-muted)">Waiting for teams...</p>';
+      }).join('');
     }
 
     function checkWinner() {
@@ -673,8 +656,6 @@
       publish(gameId + '/teams', { type: 'update', teams: teams });
       updateTeamList();
       updateRunways();
-      document.getElementById('questionText').textContent = 'Waiting for question...';
-      document.getElementById('timerDisplay').style.display = 'none';
     }
 
     // PLAYER JOIN FLOW
@@ -743,9 +724,20 @@
             if (data.question) {
               currentQuestion = data.question;
               answered = false;
-              document.getElementById('playerQuestionText').textContent = data.question.q;
               document.getElementById('resultMsg').style.display = 'none';
               document.getElementById('correctAnswer').style.display = 'none';
+              
+              if (data.showAnswer) {
+                showPlayerAnswer();
+                return;
+              }
+              
+              document.getElementById('playerQuestionText').textContent = data.question.q;
+              
+              const timerEl = document.getElementById('playerTimer');
+              timerEl.style.display = 'block';
+              timerEl.textContent = data.time;
+              timerEl.className = 'countdown-timer';
               
               const letters = ['A', 'B', 'C', 'D'];
               document.getElementById('playerAnswers').innerHTML = data.question.a.map((ans, i) => `
@@ -755,11 +747,16 @@
                 </button>
               `).join('');
               
-              if (data.showAnswer) {
-                showPlayerAnswer();
-              } else {
-                showPage('playerPage');
-              }
+              let timeLeft = data.time;
+              const playerTimer = setInterval(() => {
+                timeLeft--;
+                timerEl.textContent = timeLeft;
+                if (timeLeft <= 3) timerEl.className = 'countdown-timer danger';
+                else if (timeLeft <= 5) timerEl.className = 'countdown-timer warning';
+                if (timeLeft <= 0) clearInterval(playerTimer);
+              }, 1000);
+              
+              showPage('playerPage');
             }
             
             if (data.winner) {
